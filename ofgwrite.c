@@ -967,6 +967,10 @@ void determineCurrentUsedRootfs()
 	char dev [1000];
 	char* pos;
 	char* pos2;
+	char mmcblk_header[] = "blkdevparts=mmcblk0:";
+	int mmcblk_header_len = strlen(mmcblk_header);
+	int mmcblk_count = 0;
+	
 	memset(current_rootfs_device, 0, sizeof(current_rootfs_device));
 
 	if (fgets(line, 1000, f) != NULL)
@@ -986,6 +990,41 @@ void determineCurrentUsedRootfs()
 		}
 	}
 	my_printf("Current rootfs is: %s\n", current_rootfs_device);
+	
+	if (strlen(line))
+	{
+		pos = strstr(line, mmcblk_header);
+		if (pos)
+		{
+			pos2 = strstr(pos, " ");
+			if (pos2)
+			{
+				*pos2 = '\0';
+			}
+			
+			pos = pos + mmcblk_header_len;
+
+			while(pos2 = strstr(pos, ",")){
+				*pos2 = '\0';
+				if (strstr(pos,"kernel") && !user_kernel)
+				{
+					found_kernel_device = 1;
+					sprintf(kernel_device, "/dev/mmcblk0p%d", mmcblk_count + 1);
+					my_printf("Using %s as kernel device\n", kernel_device);
+				}
+				
+				if (strstr(pos,"rootfs") && !user_rootfs)
+				{
+					found_rootfs_device = 1;
+					sprintf(rootfs_device, "/dev/mmcblk0p%d", mmcblk_count + 1);
+					my_printf("Using %s as rootfs device\n", rootfs_device);
+				}
+				pos = pos2+1;
+				mmcblk_count ++;
+			}
+		}
+	}
+	
 	fclose(f);
 }
 
