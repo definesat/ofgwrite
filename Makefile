@@ -1,5 +1,10 @@
 SRC = flash_erase.c nandwrite.c ofgwrite.c ubiformat.c ubiutils-common.c libubigen.c libscan.c libubi.c flashcp.c ubidetach.c ubiupdatevol.c fb.c flash_ubi_jffs2.c flash_ext4.c
 
+SRC += gfx/osd.c
+
+SRC += gfx/arabic.c gfx/font.c gfx/gfx.c
+
+
 SRC_BUSYBOX= busybox/fdisk.c \
 	busybox/fdisk_gpt.c \
 	busybox/fuser.c \
@@ -70,7 +75,7 @@ OBJ_BUSYBOX = $(SRC_BUSYBOX:.c=.o)
 
 OUT = ofgwrite_bin
 
-LDFLAGS= -Llib -lmtd -static
+LDFLAGS = -Llib -lmtd -lfreetype -lpthread -static
 
 LIBSRC = ./lib/libmtd.c ./lib/libmtd_legacy.c ./lib/libcrc32.c ./lib/libfec.c
 
@@ -80,6 +85,7 @@ OUT_LIB = ./lib/libmtd.a
 
 CFLAGS ?= -O2
 CFLAGS += -I./include -I./busybox/include -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
+CFLAGS += $(shell pkg-config --cflags freetype2)
 
 CC ?= gcc
 AR ?= ar

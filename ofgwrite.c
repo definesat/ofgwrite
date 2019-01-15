@@ -12,6 +12,10 @@
 #include <sys/mount.h>
 #include <unistd.h>
 #include <errno.h>
+#include <mtd/mtd-user.h>
+
+#include "gfx/gfx.h"
+#include "gfx/font.h"
 
 const char ofgwrite_version[] = "4.1.7";
 int flash_kernel = 0;
@@ -31,7 +35,9 @@ enum RootfsTypeEnum rootfs_type;
 char media_mounts[30][500];
 int media_mount_count = 0;
 int stop_e2_needed = 1;
+PAL_OSD_Handle	OsdHandle;
 
+#define CN_DURATION_WIDTH(duration, maxtime, width)	 ((((duration) * (width)) / ((maxtime)==0?1:(maxtime))))
 
 void my_printf(char const *fmt, ...)
 {
@@ -76,6 +82,267 @@ void printUsage()
 	my_printf("   -f --force            force kill e2\n");
 	my_printf("   -q --quiet            show less output\n");
 	my_printf("   -h --help             show help\n");
+}
+
+void  UI_GFX_DrawRect(PAL_OSD_Handle Handle, S32 LeftX, S32 TopY, S32 Width, S32 Height, U32 ARGB)
+{
+	MID_GFX_Obj_t		GfxObj;
+	
+	memset(&GfxObj, 0, sizeof(GfxObj));
+	GfxObj.ObjType = MID_GFX_OBJ_GRAPH;
+	GfxObj.Obj.Graph.Type = MID_GFX_GRAPH_RECTANGLE;
+	GfxObj.Obj.Graph.Copy = FALSE;
+	GfxObj.Obj.Graph.JustFrame = FALSE;
+	GfxObj.Obj.Graph.FrameLineWidth = 0;
+	GfxObj.Obj.Graph.Params.Rectangle.LeftX = LeftX;
+	GfxObj.Obj.Graph.Params.Rectangle.TopY = TopY;
+	GfxObj.Obj.Graph.Params.Rectangle.Width = Width;
+	GfxObj.Obj.Graph.Params.Rectangle.Height = Height;
+	GfxObj.Obj.Graph.Params.Rectangle.Color.Type = PAL_OSD_COLOR_TYPE_ARGB8888;
+	GfxObj.Obj.Graph.Params.Rectangle.Color.Value.ARGB8888.Alpha = (ARGB>>24)&0x000000FF;
+	GfxObj.Obj.Graph.Params.Rectangle.Color.Value.ARGB8888.R = (ARGB>>16)&0x000000FF;
+	GfxObj.Obj.Graph.Params.Rectangle.Color.Value.ARGB8888.G = (ARGB>>8)&0x000000FF;
+	GfxObj.Obj.Graph.Params.Rectangle.Color.Value.ARGB8888.B = (ARGB)&0x000000FF;
+	
+	MID_GFX_Draw(Handle, &GfxObj);
+}
+
+void  UI_GFX_CopyRect(PAL_OSD_Handle Handle, S32 LeftX, S32 TopY, S32 Width, S32 Height, U32 ARGB)
+{
+	MID_GFX_Obj_t		GfxObj;
+	
+	memset(&GfxObj, 0, sizeof(GfxObj));
+	GfxObj.ObjType = MID_GFX_OBJ_GRAPH;
+	GfxObj.Obj.Graph.Type = MID_GFX_GRAPH_RECTANGLE;
+	GfxObj.Obj.Graph.Copy = TRUE;
+	GfxObj.Obj.Graph.JustFrame = FALSE;
+	GfxObj.Obj.Graph.FrameLineWidth = 0;
+	GfxObj.Obj.Graph.Params.Rectangle.LeftX = LeftX;
+	GfxObj.Obj.Graph.Params.Rectangle.TopY = TopY;
+	GfxObj.Obj.Graph.Params.Rectangle.Width = Width;
+	GfxObj.Obj.Graph.Params.Rectangle.Height = Height;
+	GfxObj.Obj.Graph.Params.Rectangle.Color.Type = PAL_OSD_COLOR_TYPE_ARGB8888;
+	GfxObj.Obj.Graph.Params.Rectangle.Color.Value.ARGB8888.Alpha = (ARGB>>24)&0x000000FF;
+	GfxObj.Obj.Graph.Params.Rectangle.Color.Value.ARGB8888.R = (ARGB>>16)&0x000000FF;
+	GfxObj.Obj.Graph.Params.Rectangle.Color.Value.ARGB8888.G = (ARGB>>8)&0x000000FF;
+	GfxObj.Obj.Graph.Params.Rectangle.Color.Value.ARGB8888.B = (ARGB)&0x000000FF;
+	
+	MID_GFX_Draw(Handle, &GfxObj);
+}
+/********************************************************************
+画一个矩形边宽
+
+LeftX: 		目标X 轴
+TopY: 		目标Y 轴
+Width: 		目标宽度
+Height: 		目标高度
+LineWidth: 	线宽
+ARGB: 		颜色
+
+*********************************************************************/
+void  UI_GFX_DrawRectFrame(PAL_OSD_Handle Handle, S32 LeftX, S32 TopY, S32 Width, S32 Height, S32 LineWidth, U32 ARGB)
+{
+	MID_GFX_Obj_t		GfxObj;
+
+	memset(&GfxObj, 0, sizeof(GfxObj));
+	GfxObj.ObjType = MID_GFX_OBJ_GRAPH;
+	GfxObj.Obj.Graph.Type = MID_GFX_GRAPH_RECTANGLE;
+	GfxObj.Obj.Graph.JustFrame = TRUE;
+	GfxObj.Obj.Graph.FrameLineWidth = LineWidth;
+	GfxObj.Obj.Graph.Params.Rectangle.LeftX = LeftX;
+	GfxObj.Obj.Graph.Params.Rectangle.TopY = TopY;
+	GfxObj.Obj.Graph.Params.Rectangle.Width = Width;
+	GfxObj.Obj.Graph.Params.Rectangle.Height = Height;
+	GfxObj.Obj.Graph.Params.Rectangle.Color.Type = PAL_OSD_COLOR_TYPE_ARGB8888;
+	GfxObj.Obj.Graph.Params.Rectangle.Color.Value.ARGB8888.Alpha = (ARGB>>24)&0x000000FF;
+	GfxObj.Obj.Graph.Params.Rectangle.Color.Value.ARGB8888.R = (ARGB>>16)&0x000000FF;
+	GfxObj.Obj.Graph.Params.Rectangle.Color.Value.ARGB8888.G = (ARGB>>8)&0x000000FF;
+	GfxObj.Obj.Graph.Params.Rectangle.Color.Value.ARGB8888.B = (ARGB)&0x000000FF;
+	
+	MID_GFX_Draw(Handle, &GfxObj);
+}
+
+void  UI_GFX_DrawTextInRectEx(PAL_OSD_Handle Handle, S32 LeftX, S32 TopY, S32 Width, S32 Height, U8 *Text_p, U8 FontSize, U8 PutType, U8 EffectType, U32 TextARGB, U32 OutlineARGB, BOOL Mix, BOOL Force)
+{
+	MID_GFX_Obj_t		GfxObj;
+
+	if(LeftX < 0 || TopY < 0 || Width <= 0 || Height <= 0)
+	{
+		return ;
+	}
+
+	GfxObj.ObjType = MID_GFX_OBJ_TEXT;
+	GfxObj.Obj.Text.LeftX = LeftX;
+	GfxObj.Obj.Text.TopY = TopY;
+	GfxObj.Obj.Text.Width = Width;
+	GfxObj.Obj.Text.Height = Height;
+	GfxObj.Obj.Text.XOffset = 0;
+
+	GfxObj.Obj.Text.FontName_p = "English";
+	GfxObj.Obj.Text.FontSize = FontSize;
+
+	GfxObj.Obj.Text.HInterval = 0;
+	GfxObj.Obj.Text.VInterval = 4;
+	GfxObj.Obj.Text.EffectType = EffectType;
+	GfxObj.Obj.Text.WriteType = MID_GFX_TEXT_WRITE_L_TO_R;
+	GfxObj.Obj.Text.PutType = PutType;
+	GfxObj.Obj.Text.Force = Force ;
+	GfxObj.Obj.Text.Str_p = Text_p;
+	GfxObj.Obj.Text.TextColor.Type = PAL_OSD_COLOR_TYPE_ARGB8888;
+	GfxObj.Obj.Text.TextColor.Value.ARGB8888.Alpha = (TextARGB>>24)&0x000000FF;
+	GfxObj.Obj.Text.TextColor.Value.ARGB8888.R = (TextARGB>>16)&0x000000FF;
+	GfxObj.Obj.Text.TextColor.Value.ARGB8888.G = (TextARGB>>8)&0x000000FF;
+	GfxObj.Obj.Text.TextColor.Value.ARGB8888.B = (TextARGB)&0x000000FF;
+	
+	GfxObj.Obj.Text.LineColor.Type = PAL_OSD_COLOR_TYPE_ARGB8888;
+	GfxObj.Obj.Text.LineColor.Value.ARGB8888.Alpha = (OutlineARGB>>24)&0x000000FF;
+	GfxObj.Obj.Text.LineColor.Value.ARGB8888.R = (OutlineARGB>>16)&0x000000FF;
+	GfxObj.Obj.Text.LineColor.Value.ARGB8888.G = (OutlineARGB>>8)&0x000000FF;
+	GfxObj.Obj.Text.LineColor.Value.ARGB8888.B = (OutlineARGB)&0x000000FF;
+	GfxObj.Obj.Text.Mix = Mix;
+
+	MID_GFX_Draw(Handle, &GfxObj);
+}
+
+void UI_GFX_Init(void)
+{
+	MID_GFX_FontParams_t		FontParams;
+	PAL_OSD_OpenParam_t OpenParam;
+	PAL_OSD_Win_t OsdWin;
+	
+	SDK_OsdInit();
+	PAL_OSD_Init();
+	MID_GFX_Init();
+	
+	PAL_OSD_GetMaxWin(&OsdWin);
+
+	memset(&OpenParam, 0, sizeof(OpenParam));
+	OpenParam.ColorType = PAL_OSD_COLOR_TYPE_ARGB8888;
+	OpenParam.Width = OsdWin.Width;
+	OpenParam.Height = OsdWin.Height;
+	OpenParam.IOWin.InputWin.LeftX = 0;
+	OpenParam.IOWin.InputWin.TopY = 0;
+	OpenParam.IOWin.InputWin.Width = OsdWin.Width;
+	OpenParam.IOWin.InputWin.Height = OsdWin.Height;
+	OpenParam.IOWin.OutputWin = OpenParam.IOWin.InputWin;
+
+	if(PAL_OSD_Open(&OpenParam, &OsdHandle) != TH_NO_ERROR)
+	{
+		my_printf("PAL_OSD_Open error\n");
+	}
+
+	memset(&FontParams, 0, sizeof(FontParams));
+	FontParams.Type = MID_GFX_FONT_TYPE_TTF;
+	FontParams.Font.TtfFontParams.FontData_p = font_data;
+	FontParams.Font.TtfFontParams.FontDataSize = sizeof(font_data);
+
+	MID_GFX_SetDefaultFont("default", &FontParams);
+	UI_GFX_DrawTextInRectEx(OsdHandle, 100, 50, 800, 60, (U8 *)"Updating system firmware", 
+								50, 
+								MID_GFX_TEXT_PUT_LEFT, MID_GFX_TEXT_NORMAL, 
+								0xFFFFFFFF, 
+								0, 
+								TRUE, TRUE);
+
+	UI_GFX_DrawTextInRectEx(OsdHandle, 100, 200, 800, 160, (U8 *)"Waiting system is stopped!", 
+								50, 
+								MID_GFX_TEXT_PUT_LEFT|MID_GFX_TEXT_PUT_TOP, MID_GFX_TEXT_NEWLINE, 
+								0xFFFFFFFF, 
+								0, 
+								TRUE, TRUE);
+
+	PAL_OSD_UpdateDisplay();
+}
+
+void UI_GFX_Reinit(char *text)
+{
+	PAL_OSD_OpenParam_t OpenParam;
+	PAL_OSD_Win_t OsdWin;
+
+	PAL_OSD_Close(OsdHandle);
+	OsdHandle = TH_INVALID_HANDLE;
+	SDK_OsdTerm();
+	SDK_OsdInit();
+	PAL_OSD_GetMaxWin(&OsdWin);
+
+	memset(&OpenParam, 0, sizeof(OpenParam));
+	OpenParam.ColorType = PAL_OSD_COLOR_TYPE_ARGB8888;
+	OpenParam.Width = OsdWin.Width;
+	OpenParam.Height = OsdWin.Height;
+	OpenParam.IOWin.InputWin.LeftX = 0;
+	OpenParam.IOWin.InputWin.TopY = 0;
+	OpenParam.IOWin.InputWin.Width = OsdWin.Width;
+	OpenParam.IOWin.InputWin.Height = OsdWin.Height;
+	OpenParam.IOWin.OutputWin = OpenParam.IOWin.InputWin;
+
+	if(PAL_OSD_Open(&OpenParam, &OsdHandle) != TH_NO_ERROR)
+	{
+		my_printf("PAL_OSD_Open error\n");
+	}
+	UI_GFX_DrawTextInRectEx(OsdHandle, 100, 50, 800, 60, (U8 *)"Updating system firmware", 
+								50, 
+								MID_GFX_TEXT_PUT_LEFT, MID_GFX_TEXT_NORMAL, 
+								0xFFFFFFFF, 
+								0, 
+								TRUE, TRUE);
+
+	UI_GFX_DrawTextInRectEx(OsdHandle, 100, 200, 800, 160, (U8 *)text, 
+								50, 
+								MID_GFX_TEXT_PUT_LEFT|MID_GFX_TEXT_PUT_TOP, MID_GFX_TEXT_NEWLINE, 
+								0xFFFFFFFF, 
+								0, 
+								TRUE, TRUE);
+	
+	PAL_OSD_UpdateDisplay();
+}
+
+void draw_partition_text(char *text)
+{
+	if(OsdHandle == TH_INVALID_HANDLE)
+		return ;
+	UI_GFX_CopyRect(OsdHandle, 100, 200, 800, 160, 0);
+	
+	UI_GFX_DrawTextInRectEx(OsdHandle, 100, 200, 800, 160, (U8 *)text, 
+								50, 
+								MID_GFX_TEXT_PUT_LEFT|MID_GFX_TEXT_PUT_TOP, MID_GFX_TEXT_NEWLINE, 
+								0xFFFFFFFF, 
+								0, 
+								TRUE, TRUE);
+	PAL_OSD_UpdateDisplay();
+}
+
+void draw_partition_progess(int progress)
+{
+	if(OsdHandle == TH_INVALID_HANDLE)
+		return ;
+	
+	UI_GFX_CopyRect(OsdHandle, 100, 360, 800, 60, 0);
+	UI_GFX_DrawTextInRectEx(OsdHandle, 100, 360, 800, 60, (U8 *)"Current partition grogress", 
+								50, 
+								MID_GFX_TEXT_PUT_LEFT, MID_GFX_TEXT_NORMAL, 
+								0xFFFFFFFF, 
+								0, 
+								TRUE, TRUE);
+	UI_GFX_CopyRect(OsdHandle, 100, 420, 700, 40, 0);
+	UI_GFX_CopyRect(OsdHandle, 100, 420, CN_DURATION_WIDTH(progress, 100, 700), 40, 0xFFFFFFFF);
+	PAL_OSD_UpdateDisplay();
+}
+
+void draw_total_progess(int progress)
+{
+	if(OsdHandle == TH_INVALID_HANDLE)
+		return ;
+	
+	UI_GFX_CopyRect(OsdHandle, 100, 460, 800, 60, 0);
+	UI_GFX_DrawTextInRectEx(OsdHandle, 100, 460, 800, 60, (U8 *)"Total grogress", 
+								50, 
+								MID_GFX_TEXT_PUT_LEFT, MID_GFX_TEXT_NORMAL, 
+								0xFFFFFFFF, 
+								0, 
+								TRUE, TRUE);
+	UI_GFX_CopyRect(OsdHandle, 100, 520, 700, 40, 0);
+	UI_GFX_CopyRect(OsdHandle, 100, 520, CN_DURATION_WIDTH(progress, 100, 700), 40, 0xFFFFFFFF);
+	PAL_OSD_UpdateDisplay();
 }
 
 int find_image_files(char* p)
@@ -544,7 +811,7 @@ int check_e2_stopped()
 	int max_time = 70;
 	int e2_found = 1;
 
-	set_step_progress(0);
+//	set_step_progress(0);
 	if (!quiet)
 		my_printf("Checking E2 is running...\n");
 	while (time < max_time && e2_found)
@@ -563,7 +830,7 @@ int check_e2_stopped()
 			if (!quiet)
 				my_printf("E2 still running\n");
 		}
-		set_step_progress(time * 100 / max_time);
+	//	set_step_progress(time * 100 / max_time);
 	}
 
 	if (e2_found)
@@ -685,6 +952,7 @@ int umount_rootfs(int steps)
 		ret += system("cp -arf /bin/sh*          /newroot/bin");
 		ret += system("cp -arf /bin/bash*        /newroot/bin");
 		ret += system("cp -arf /sbin/init*       /newroot/sbin");
+		ret += system("cp -arf /sbin/getty       /newroot/sbin");
 		ret += system("cp -arf /lib64/libc*        /newroot/lib64");
 		ret += system("cp -arf /lib64/ld*          /newroot/lib64");
 		ret += system("cp -arf /lib64/libtinfo*    /newroot/lib64");
@@ -696,6 +964,7 @@ int umount_rootfs(int steps)
 		ret += system("cp -arf /bin/sh*          /newroot/bin");
 		ret += system("cp -arf /bin/bash*        /newroot/bin");
 		ret += system("cp -arf /sbin/init*       /newroot/sbin");
+		ret += system("cp -arf /sbin/getty       /newroot/sbin");
 		ret += system("cp -arf /lib/libc*        /newroot/lib");
 		ret += system("cp -arf /lib/ld*          /newroot/lib");
 		ret += system("cp -arf /lib/libtinfo*    /newroot/lib");
@@ -770,36 +1039,36 @@ int umount_rootfs(int steps)
 	if (ret)
 	{
 		my_printf("Error switching runmode!\n");
-		set_error_text("Error switching runmode! Abort flashing.");
+		draw_partition_text("Error switching runmode! Abort flashing.");
 		sleep(5);
 		return 0;
 	}
 
 	// it can take several seconds until E2 is shut down
 	// wait because otherwise remounting read only is not possible
-	set_step("Wait until E2 is stopped");
+	draw_partition_text("Waiting system is stopped!");
 	if (!check_e2_stopped())
 	{
-		my_printf("Error E2 can't be stopped! Abort flashing.\n");
-		set_error_text("Error E2 can't be stopped! Abort flashing.");
+		my_printf("Error system can't be stopped! Abort flashing.\n");
+		draw_partition_text("Error E2 can't be stopped! Abort flashing.");
 		ret = system("init 3");
 		return 0;
 	}
 
 	// some boxes don't allow to open framebuffer while e2 is running
 	// reopen framebuffer to show the GUI
-	close_framebuffer();
-	init_framebuffer(steps);
-	show_main_window(1, ofgwrite_version);
-	set_overall_text("Flashing image");
-	set_step_without_incr("Wait until E2 is stopped");
+//	close_framebuffer();
+//	init_framebuffer(steps);
+//	show_main_window(1, ofgwrite_version);
+//	set_overall_text("Flashing image");
+	UI_GFX_Reinit("Waiting system is stopped!");
 	sleep(2);
 
 	ret = pivot_root("/newroot/", "oldroot");
 	if (ret)
 	{
 		my_printf("Error executing pivot_root!\n");
-		set_error_text("Error pivot_root! Abort flashing.");
+		draw_partition_text("Error pivot_root! Abort flashing.");
 		sleep(5);
 		ret = system("init 3");
 		return 0;
@@ -816,12 +1085,12 @@ int umount_rootfs(int steps)
 	if (ret != 0)
 	{
 		my_printf("Error move mounts to newroot\n");
-		set_error_text1("Error move mounts to newroot. Abort flashing!");
-		set_error_text2("Rebooting in 30 seconds!");
+		draw_partition_text("Error move mounts to newroot. Abort flashing! Rebooting in 30 seconds!");
 		sleep(30);
 		reboot(LINUX_REBOOT_CMD_RESTART);
 		return 0;
 	}
+#if 1
 	ret = mount("/oldroot/media/", "media/", NULL, MS_MOVE, NULL);
 	if (ret != 0)
 	{
@@ -839,7 +1108,7 @@ int umount_rootfs(int steps)
 			mount(oldroot_path, media_mounts[k], NULL, MS_MOVE, NULL);
 		}
 	}
-
+#endif
 	// create link for mount/umount for autofs
 	ret = symlink("/bin/busybox", "/bin/mount");
 	ret += symlink("/bin/busybox", "/bin/umount");
@@ -850,7 +1119,6 @@ int umount_rootfs(int steps)
 	{
 		my_printf("Error starting autofs\n");
 	}
-
 	// restart init process
 	ret = system("exec init u");
 	sleep(3);
@@ -862,11 +1130,24 @@ int umount_rootfs(int steps)
 	sleep(3);
 
 	ret = umount("/oldroot/newroot");
+	if (!ret)
+	{
+		my_printf("umount /oldroot/newroot successful\n");
+	}
+	else
+	{
+		my_printf("umount /oldroot/newroot not successful\n");
+	}
+	
 	ret = umount("/oldroot/");
 	if (!ret)
-		my_printf("umount successful\n");
+	{
+		my_printf("umount /oldroot/ successful\n");
+	}
 	else
-		my_printf("umount not successful\n");
+	{
+		my_printf("umount /oldroot/ not successful\n");
+	}
 
 	if (!ret && rootfs_type == EXT4) // umount success and ext4 -> remount again
 	{
@@ -876,8 +1157,7 @@ int umount_rootfs(int steps)
 		else
 		{
 			my_printf("Error mounting(bind) root! Abort flashing.\n");
-			set_error_text1("Error remounting(bind) root! Abort flashing.");
-			set_error_text2("Rebooting in 30 seconds");
+			draw_partition_text("Error remounting(bind) root! Abort flashing. Rebooting in 30 seconds.");
 			sleep(30);
 			reboot(LINUX_REBOOT_CMD_RESTART);
 			return 0;
@@ -893,8 +1173,7 @@ int umount_rootfs(int steps)
 		else
 		{
 			my_printf("Error binding root! Abort flashing.\n");
-			set_error_text1("Error binding root! Abort flashing.");
-			set_error_text2("Rebooting in 30 seconds");
+			draw_partition_text("Error binding root! Abort flashing. Rebooting in 30 seconds.");
 			sleep(30);
 			reboot(LINUX_REBOOT_CMD_RESTART);
 			return 0;
@@ -906,8 +1185,7 @@ int umount_rootfs(int steps)
 		if (ret)
 		{
 			my_printf("Error remounting root! Abort flashing.\n");
-			set_error_text1("Error remounting root! Abort flashing.");
-			set_error_text2("Rebooting in 30 seconds");
+			draw_partition_text("Error remounting root! Abort flashing. Rebooting in 30 seconds");
 			sleep(30);
 			reboot(LINUX_REBOOT_CMD_RESTART);
 			return 0;
@@ -1145,14 +1423,336 @@ void handle_busybox_fatal_error()
 	exit(EXIT_FAILURE);
 }
 
+typedef struct
+{
+	char mtd_name[128];
+	char partition_name[128];
+	char img_name[128];
+	char erase_full;
+}update_partition_t;
+
+static update_partition_t update_mtd_partitions[32];
+static int				update_mtd_num = 0;
+static char			update_need_recover = 0;
+static unsigned long long update_img_total_size = 0;
+/* partitions.txt format
+partition name:     mtd index:      img_name
+
+boot:0:fastboo.bin
+bootargs:1:bootargs.bin
+baseparam:2:baseparam.bin
+pqparam:3:pqparam.bin
+logo:4:logo.jpg
+deviceinfo:5:deviceinfo.bin
+softwareinfo:6:softwareinfo.bin
+loader:7:apploader.bin
+kernel:8:uImage
+rootfs:9:rootfs.bin
+
+
+*/
+void prepare_update_partitions(char *folder)
+{
+	struct stat64 filestat;
+	struct mtd_info_user mtdInfo;
+	int	mtd_fd, mtd_index;
+	FILE *fp_partitions;
+	char line[256];
+	char tmp_buff[128];
+
+	update_mtd_num = 0;
+	update_img_total_size = 0;
+	
+	sprintf(tmp_buff, "%s/partitions.txt", folder);
+	fp_partitions = fopen(tmp_buff,"rt");
+
+	if(fp_partitions)
+	{
+	//	my_printf("open %s success\n", tmp_buff);
+
+		while(!feof(fp_partitions))
+		{
+			if (!fgets(line, sizeof(line), fp_partitions))
+			{
+				break;
+			}
+		//	my_printf("got line %s\n", line);
+
+			if(sscanf(line, "%[^:]:%d:%s", update_mtd_partitions[update_mtd_num].partition_name, &mtd_index, tmp_buff) == 3)
+			{
+				sprintf(update_mtd_partitions[update_mtd_num].img_name, "%s/%s", folder, tmp_buff);
+				sprintf(update_mtd_partitions[update_mtd_num].mtd_name, "/dev/mtd%d", mtd_index);
+				if(strcmp(update_mtd_partitions[update_mtd_num].partition_name, "rootfs") == 0)
+				{
+					update_mtd_partitions[update_mtd_num].erase_full = 1;
+					ubi_detach_dev(update_mtd_partitions[update_mtd_num].mtd_name, 0, 0);
+				}
+				else
+				{
+					update_mtd_partitions[update_mtd_num].erase_full = 0;
+				}
+
+				if(update_mtd_partitions[update_mtd_num].erase_full)
+				{
+					mtd_fd = open(update_mtd_partitions[update_mtd_num].mtd_name, O_RDONLY|O_SYNC);
+					if(mtd_fd != -1)
+					{
+						memset(&mtdInfo,0,sizeof(struct mtd_info_user));
+						ioctl(mtd_fd, MEMGETINFO, &mtdInfo);
+						update_img_total_size += mtdInfo.size;
+						close(mtd_fd);
+					}
+					else
+					{
+						if (stat64(update_mtd_partitions[update_mtd_num].img_name, &filestat) == 0)
+						{
+							update_img_total_size += filestat.st_size;
+						}
+					}
+				}
+				else
+				{
+					if (stat64(update_mtd_partitions[update_mtd_num].img_name, &filestat) == 0)
+					{
+						update_img_total_size += filestat.st_size;
+					}
+				}
+
+				my_printf("got partition: %s, %s, %s\n", update_mtd_partitions[update_mtd_num].partition_name, update_mtd_partitions[update_mtd_num].img_name, update_mtd_partitions[update_mtd_num].mtd_name);
+				update_mtd_num ++;
+			}
+		}
+		fclose(fp_partitions);
+	}
+	else
+	{
+		my_printf("open %s failed\n", tmp_buff);
+	}
+
+	my_printf("got update_img_total_size %lld\n", update_img_total_size);
+	if(access("/tmp/update_img/uImage", F_OK) == 0)
+	{
+		my_printf("got /tmp/update_img/uImage\n");
+	}
+	if(access("/tmp/update_img/rootfs.bin", F_OK) == 0)
+	{
+		my_printf("got /tmp/update_img/rootfs.bin\n");
+	}
+
+	if(access("/tmp/weather", F_OK) == 0)
+	{
+		my_printf("got /tmp/weather\n");
+	}
+	if(access("/tmp/youtube", F_OK) == 0)
+	{
+		my_printf("got /tmp/youtube\n");
+	}
+	if(access("/tmp/iptv", F_OK) == 0)
+	{
+		my_printf("got /tmp/iptv\n");
+	}
+}
+static unsigned long long next_good_eraseblock(int fd, struct mtd_info_user *meminfo,
+		unsigned long long block_offset)
+{
+	while (1) {
+		loff_t offs;
+
+		if (block_offset >= meminfo->size) {
+			return block_offset; /* let the caller exit */
+		}
+		offs = block_offset;
+		if (ioctl(fd, MEMGETBADBLOCK, &offs) == 0)
+			return block_offset;
+		/* ioctl returned 1 => "bad block" */
+		block_offset += meminfo->erasesize;
+	}
+}
+
+void program_update_partitions(void)
+{
+	int 	i;
+	int	mtd_fd, img_fd;
+	struct erase_info_user erase;
+	struct mtd_info_user mtdInfo;
+	
+	void						*CompareBuff_p, *file_buff;
+	unsigned long long			ReadSize, ComparedSize, WriteSize, TotalUpdatedSize;
+	struct stat64 filestat;
+	long long		CurrPartDataSize, CurrPartRestSize, CurrPartReadOffset;
+	char		NeedWrite, EraseFull;
+	int 		need_recover = 0;
+	long long		WriteOffset;
+	char tmp_str[128];
+
+	TotalUpdatedSize = 0;
+	draw_total_progess(0);
+	for(i=0; i<update_mtd_num; i++)
+	{
+		sprintf(tmp_str, "Programing %s", update_mtd_partitions[i].partition_name);
+		draw_partition_text(tmp_str);
+		draw_partition_progess(0);
+		
+		mtd_fd = -1;
+		img_fd = -1;
+		CompareBuff_p = NULL;
+		file_buff = NULL;
+		
+		img_fd = open(update_mtd_partitions[i].img_name, O_RDONLY|O_SYNC);
+		if(img_fd == -1)
+		{
+			my_printf("file = %s, line = %d, %s\n", __FILE__, __LINE__, update_mtd_partitions[i].img_name);
+			continue;
+		}
+		
+		mtd_fd = open(update_mtd_partitions[i].mtd_name, O_RDWR|O_SYNC);
+		if(mtd_fd == -1)
+		{
+			my_printf("file = %s, line = %d, %s\n", __FILE__, __LINE__, update_mtd_partitions[i].mtd_name);
+			goto end;
+		}
+		
+		/*deal with one mtdblock*/
+		memset(&mtdInfo,0,sizeof(struct mtd_info_user));
+		ioctl(mtd_fd, MEMGETINFO, &mtdInfo);
+		erase.length = mtdInfo.erasesize;
+		erase.start = 0;
+		WriteOffset = 0;
+		
+		CompareBuff_p = malloc(mtdInfo.erasesize);
+		if(CompareBuff_p == NULL)
+		{
+			my_printf("file = %s, line = %d\n", __FILE__, __LINE__);
+			goto end;
+		}
+		file_buff = malloc(mtdInfo.erasesize);
+		if(file_buff == NULL)
+		{
+			my_printf("file = %s, line = %d\n", __FILE__, __LINE__);
+			goto end;
+		}
+		
+		if (stat64(update_mtd_partitions[i].img_name, &filestat) != 0)
+		{
+			my_printf("file = %s, line = %d\n", __FILE__, __LINE__);
+			goto end;
+		}
+		CurrPartDataSize = filestat.st_size;
+
+		EraseFull = update_mtd_partitions[i].erase_full;
+		need_recover = update_need_recover;
+		
+		CurrPartRestSize = CurrPartDataSize;
+		CurrPartReadOffset = 0;
+		my_printf("start part %s, data size %lld\n", update_mtd_partitions[i].partition_name, CurrPartDataSize);
+		while(WriteOffset < mtdInfo.size)/**/
+		{
+			/*compare one erase block data is different or same*/
+			NeedWrite = FALSE;
+			WriteOffset = next_good_eraseblock(mtd_fd, &mtdInfo, WriteOffset);
+			if(WriteOffset >= mtdInfo.size)
+			{
+				break;
+			}
+			ReadSize = mtdInfo.erasesize;
+			if(CurrPartRestSize)
+			{
+				if(CurrPartRestSize > mtdInfo.erasesize)
+				{
+					ReadSize = mtdInfo.erasesize;
+				}
+				else
+				{
+					ReadSize = CurrPartRestSize;
+				}
+				lseek(mtd_fd, WriteOffset, SEEK_SET);
+				read(mtd_fd, CompareBuff_p, mtdInfo.erasesize);
+				
+				lseek(img_fd, CurrPartReadOffset, SEEK_SET);
+				read(img_fd, file_buff, ReadSize);
+
+				if(memcmp(file_buff, CompareBuff_p, ReadSize) != 0)
+				{
+					my_printf("data different %08llx, offset %08llx\n", CurrPartReadOffset, WriteOffset);
+					NeedWrite = TRUE;
+				}
+			}
+			
+			if((CurrPartRestSize == 0 && EraseFull) || NeedWrite)
+			{
+				/*erase block
+				erase.start = WriteOffset;
+				if(ioctl(mtd_fd, MEMERASE, &erase) != 0)
+				{
+					goto end;
+				}*/
+				my_printf("erase mtd %s, offset %08llx\n", update_mtd_partitions[i].partition_name, WriteOffset);
+			}
+
+			if(NeedWrite)
+			{
+				lseek(mtd_fd, WriteOffset, SEEK_SET);
+			//	WriteSize = write(mtd_fd, file_buff, mtdInfo.erasesize);
+				WriteSize = mtdInfo.erasesize;
+				my_printf("write mtd %s, offset %08llx, size %lld, wrote size %lld\n", update_mtd_partitions[i].partition_name, WriteOffset, mtdInfo.erasesize, WriteSize);
+			}
+			
+			if(CurrPartRestSize)
+			{
+				CurrPartReadOffset += ReadSize;
+				CurrPartRestSize -= ReadSize;
+			}
+			WriteOffset += mtdInfo.erasesize;
+
+			/*calculate progress*/
+			if(EraseFull)
+			{
+				draw_partition_progess(WriteOffset*100/mtdInfo.size);
+				TotalUpdatedSize += mtdInfo.erasesize;
+			}
+			else
+			{
+				draw_partition_progess(CurrPartReadOffset*100/CurrPartDataSize);
+				if(CurrPartRestSize)
+				{
+					TotalUpdatedSize += ReadSize;
+				}
+			}
+			draw_total_progess(TotalUpdatedSize*100/update_img_total_size);
+		}
+		free(file_buff); file_buff = NULL;
+		free(CompareBuff_p); CompareBuff_p = NULL;
+		close(img_fd); img_fd = -1;
+		close(mtd_fd); mtd_fd = -1;
+	}
+	
+	draw_partition_progess(100);
+	draw_total_progess(100);
+	draw_partition_text("Updating system firmware successful, will restart in few seconds.");
+	sleep(2);
+end:
+	if(file_buff)
+	{
+		free(file_buff); file_buff = NULL;
+	}
+	if(CompareBuff_p)
+	{
+		free(CompareBuff_p); CompareBuff_p = NULL;
+	}
+	
+	if(img_fd != -1)
+	{
+		close(img_fd); img_fd = -1;
+	}
+	if(mtd_fd != -1)
+	{
+		close(mtd_fd); mtd_fd = -1;
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	// Check if running on a box or on a PC. Stop working on PC to prevent overwriting important files
-#if defined(__i386) || defined(__x86_64__)
-	my_printf("You're running ofgwrite on a PC. Aborting...\n");
-	exit(EXIT_FAILURE);
-#endif
-
 	// Open log
 	openlog("ofgwrite", LOG_CONS | LOG_NDELAY, LOG_USER);
 
@@ -1161,261 +1761,63 @@ int main(int argc, char *argv[])
 	my_printf("Based upon: mtd-utils-native-1.5.1 and busybox 1.24.1\n");
 	my_printf("Use at your own risk! Make always a backup before use!\n");
 	my_printf("Don't use it if you use multiple ubi volumes in ubi layer!\n\n");
-
-	int ret;
-
-	ret = read_args(argc, argv);
-
-	if (!ret || show_help)
+	
 	{
-		printUsage();
-		return EXIT_FAILURE;
-	}
+		UI_GFX_Init();
 
-	// set rootfs type and more
-	readMounts();
-
-	if (rootfs_type == UBIFS || rootfs_type == JFFS2)
-	{
-		my_printf("\n");
-		if (!read_mtd_file())
-			return EXIT_FAILURE;
-	}
-	else if (rootfs_type == EXT4)
-	{
-		my_printf("\n");
-		find_kernel_rootfs_device();
-		if (flash_kernel && !found_kernel_device)
-			return EXIT_FAILURE;
-		if (flash_rootfs && !found_rootfs_device)
-			return EXIT_FAILURE;
-		if (!check_device_size())
-			return EXIT_FAILURE;
-	}
-
-	my_printf("\n");
-
-	if (flash_kernel && (!found_kernel_device || kernel_filename[0] == '\0'))
-	{
-		my_printf("Error: Cannot flash kernel");
-		if (!found_kernel_device)
-			my_printf(", because no kernel MTD entry was found\n");
-		else
-			my_printf(", because no kernel file was found\n");
-		return EXIT_FAILURE;
-	}
-
-	if (flash_rootfs && (!found_rootfs_device || rootfs_filename[0] == '\0' || rootfs_type == UNKNOWN))
-	{
-		my_printf("Error: Cannot flash rootfs");
-		if (!found_rootfs_device)
-			my_printf(", because no rootfs MTD entry was found\n");
-		else if (rootfs_filename[0] == '\0')
-			my_printf(", because no rootfs file was found\n");
-		else
-			my_printf(", because rootfs type is unknown\n");
-		return EXIT_FAILURE;
-	}
-
-	if (flash_kernel && !flash_rootfs) // flash only kernel
-	{
-		if (!quiet)
-			my_printf("Flashing kernel ...\n");
-
-		init_framebuffer(2);
-		show_main_window(0, ofgwrite_version);
-		set_overall_text("Flashing kernel");
-
-		if (!kernel_flash(kernel_device, kernel_filename))
-			ret = EXIT_FAILURE;
-		else
-			ret = EXIT_SUCCESS;
-
-		if (!quiet && ret == EXIT_SUCCESS)
-		{
-			my_printf("done\n");
-			set_step("Successfully flashed kernel!");
-			sleep(5);
-		}
-		else if (ret == EXIT_FAILURE)
-		{
-			my_printf("failed. System won't boot. Please flash backup!\n");
-			set_error_text1("Error flashing kernel. System won't boot!");
-			set_error_text2("Please flash backup! Go back to E2 in 60 sec");
-			sleep(60);
-		}
-		closelog();
-		close_framebuffer();
-		return ret;
-	}
-
-	if (flash_rootfs)
-	{
-		ret = 0;
-
-		// Check whether /newroot exists and is mounted as tmpfs
-		if (!check_env())
-		{
-			closelog();
-			return EXIT_FAILURE;
-		}
-
-		int steps = 6;
-		if (flash_kernel && rootfs_type != EXT4)
-			steps+= 2;
-		else if (flash_kernel && rootfs_type == EXT4)
-			steps+= 1;
-		init_framebuffer(steps);
-		show_main_window(0, ofgwrite_version);
-		set_overall_text("Flashing image");
-		set_step("Killing processes");
-
+		rootfs_type = UBIFS;
 		// kill nmbd, smbd, rpc.mountd and rpc.statd -> otherwise remounting root read-only is not possible
-		if (!no_write && stop_e2_needed)
 		{
-			ret = system("killall nmbd");
-			ret = system("killall smbd");
-			ret = system("killall rpc.mountd");
-			ret = system("killall rpc.statd");
-			ret = system("/etc/init.d/softcam stop");
-			ret = system("killall CCcam");
-			ret = system("pkill -9 -f '[Oo][Ss][Cc][Aa][Mm]'");
-			ret = system("ps w | grep -i oscam | grep -v grep | awk '{print $1}'| xargs kill -9");
-			ret = system("pkill -9 -f '[Ww][Ii][Cc][Aa][Rr][Dd][Dd]'");
-			ret = system("ps w | grep -i wicardd | grep -v grep | awk '{print $1}'| xargs kill -9");
-			ret = system("killall kodi.bin");
-			ret = system("killall hddtemp");
-			ret = system("killall transmission-daemon");
-			ret = system("killall openvpn");
-			ret = system("/etc/init.d/sabnzbd stop");
-			ret = system("pkill -9 -f cihelper");
-			ret = system("pkill -9 -f ciplus_helper");
-			ret = system("pkill -9 -f ciplushelper");
+			system("killall nmbd");
+			system("killall smbd");
+			system("killall rpc.mountd");
+			system("killall rpc.statd");
+			system("/etc/init.d/softcam stop");
+			system("killall CCcam");
+			system("pkill -9 -f '[Oo][Ss][Cc][Aa][Mm]'");
+			system("ps w | grep -i oscam | grep -v grep | awk '{print $1}'| xargs kill -9");
+			system("pkill -9 -f '[Ww][Ii][Cc][Aa][Rr][Dd][Dd]'");
+			system("ps w | grep -i wicardd | grep -v grep | awk '{print $1}'| xargs kill -9");
+			system("killall kodi.bin");
+			system("killall hddtemp");
+			system("killall transmission-daemon");
+			system("killall openvpn");
+			system("/etc/init.d/sabnzbd stop");
+			system("pkill -9 -f cihelper");
+			system("pkill -9 -f ciplus_helper");
+			system("pkill -9 -f ciplushelper");
 			// kill VMC
-			ret = system("pkill -f vmc.sh");
-			ret = system("pkill -f DBServer.py");
+			system("pkill -f vmc.sh");
+			system("pkill -f DBServer.py");
 			// stop autofs
-			ret = system("/etc/init.d/autofs stop");
+			system("/etc/init.d/autofs stop");
 			// ignore return values, because the processes might not run
 		}
 
 		// sync filesystem
 		my_printf("Syncing filesystem\n");
-		set_step("Syncing filesystem");
 		sync();
 		sleep(1);
 
-		set_step("init 2");
-		if (!no_write && stop_e2_needed)
 		{
 			if (!daemonize())
 			{
 				closelog();
-				close_framebuffer();
 				return EXIT_FAILURE;
 			}
-			if (!umount_rootfs(steps))
+			if (!umount_rootfs(0))
 			{
 				closelog();
-				close_framebuffer();
-				return EXIT_FAILURE;
-			}
-		}
-		// if not running rootfs is flashed then we need to mount it before start flashing
-		if (!no_write && !stop_e2_needed && rootfs_type == EXT4)
-		{
-			set_step("Mount rootfs");
-			mkdir("/oldroot_bind", 777);
-			// mount rootfs device
-			ret = mount(rootfs_device, "/oldroot_bind/", "ext4", 0, NULL);
-			if (!ret)
-				my_printf("Mount to /oldroot_bind/ successful\n");
-			else if (errno == EINVAL)
-			{
-				// most likely partition is not formatted -> format it
-				char mkfs_cmd[100];
-				sprintf(mkfs_cmd, "mkfs.ext4 %s", rootfs_device);
-				my_printf("Formatting %s\n", rootfs_device);
-				ret = system(mkfs_cmd);
-				if (!ret)
-				{ // try to mount it again
-					ret = mount(rootfs_device, "/oldroot_bind/", "ext4", 0, NULL);
-					if (!ret)
-						my_printf("Mount to /oldroot_bind/ successful\n");
-				}
-			}
-			if (ret)
-			{
-				my_printf("Error mounting root! Abort flashing.\n");
-				set_error_text1("Error mounting root! Abort flashing.");
-				sleep(3);
-				close_framebuffer();
 				return EXIT_FAILURE;
 			}
 		}
 
-		//Flash kernel
-		if (flash_kernel)
-		{
-			if (!quiet)
-				my_printf("Flashing kernel ...\n");
-
-			if (!kernel_flash(kernel_device, kernel_filename))
-			{
-				my_printf("Error flashing kernel. System won't boot. Please flash backup! Starting E2 in 60 seconds\n");
-				set_error_text1("Error flashing kernel. System won't boot!");
-				set_error_text2("Please flash backup! Starting E2 in 60 sec");
-				if (stop_e2_needed)
-				{
-					sleep(60);
-					reboot(LINUX_REBOOT_CMD_RESTART);
-				}
-				sleep(3);
-				close_framebuffer();
-				return EXIT_FAILURE;
-			}
-			sync();
-			my_printf("Successfully flashed kernel!\n");
-		}
-
-		// Flash rootfs
-		if (!rootfs_flash(rootfs_device, rootfs_filename))
-		{
-			my_printf("Error flashing rootfs! System won't boot. Please flash backup! System will reboot in 60 seconds\n");
-			set_error_text1("Error flashing rootfs. System won't boot!");
-			set_error_text2("Please flash backup! Rebooting in 60 sec");
-			if (stop_e2_needed)
-			{
-				sleep(60);
-				reboot(LINUX_REBOOT_CMD_RESTART);
-			}
-			sleep(3);
-			close_framebuffer();
-			return EXIT_FAILURE;
-		}
-
-		my_printf("Successfully flashed rootfs! Rebooting in 3 seconds...\n");
-		if (!stop_e2_needed)
-		{
-			ret = umount("/oldroot_bind/");
-			ret = rmdir("/oldroot_bind/");
-			ret = umount("/newroot/");
-			ret = rmdir("/newroot/");
-			set_step("Successfully flashed!");
-		}
-		else
-			set_step("Successfully flashed! Rebooting in 3 seconds");
-		fflush(stdout);
-		fflush(stderr);
-		sleep(3);
-		if (!no_write && stop_e2_needed)
-		{
-			reboot(LINUX_REBOOT_CMD_RESTART);
-		}
+		prepare_update_partitions("/tmp/update_img");
+		program_update_partitions();
 	}
 
+	my_printf("\n");
 	closelog();
-	close_framebuffer();
-
+	reboot(LINUX_REBOOT_CMD_RESTART);
 	return EXIT_SUCCESS;
 }
