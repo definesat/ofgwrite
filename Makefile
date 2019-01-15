@@ -84,7 +84,7 @@ LIBOBJ = $(LIBSRC:.c=.o)
 OUT_LIB = ./lib/libmtd.a
 
 CFLAGS ?= -O2
-CFLAGS += -I./include -I./busybox/include -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE 
+CFLAGS += -I./include -I./busybox/include -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
 CFLAGS += $(shell pkg-config --cflags freetype2)
 
 CC ?= gcc
@@ -93,8 +93,6 @@ AR ?= ar
 .SUFFIXES: .cpp
 
 default: $(OUT_LIB) $(OUT)
-	@echo "CFLAGS: $(CFLAGS)"
-	@echo "LDFLAGS: $(LDFLAGS)"
 
 .cpp.o:
 	$(CC) $(CFLAGS) -c $< -o $@
